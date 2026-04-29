@@ -41,6 +41,12 @@ public class LeitorFatura {
     private static final Pattern P_MES_ANO = Pattern.compile("\\d{2}/\\d{4}");
     private static final Pattern P_CEP     = Pattern.compile("\\d{5}[\\-\\s]\\d{3}");
 
+    public DadosFatura lerTexto(String texto) {
+        DadosFatura dados = new DadosFatura();
+        processar(texto, dados);
+        return dados;
+    }
+
     public DadosFatura lerFatura(String caminhoPdf) throws IOException {
         File arquivo = new File(caminhoPdf);
         if (!arquivo.exists()) throw new IllegalArgumentException("Arquivo não encontrado: " + caminhoPdf);

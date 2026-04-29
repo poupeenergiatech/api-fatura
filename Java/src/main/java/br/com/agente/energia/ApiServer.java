@@ -14,8 +14,14 @@ import java.util.concurrent.Executors;
 
 public class ApiServer {
 
+    @FunctionalInterface
+    interface FaturaProcessor {
+        DadosFatura processar(String caminho) throws IOException;
+    }
+
     private final int porta;
     private final LeitorFatura leitor = new LeitorFatura();
+    private final LeitorFaturaOcr leitorOcr = new LeitorFaturaOcr();
 
     public ApiServer(int porta) {
         this.porta = porta;
@@ -23,23 +29,24 @@ public class ApiServer {
 
     public void iniciar() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(porta), 0);
-        server.createContext("/api/fatura", this::handleFatura);
-        server.createContext("/api/health", this::handleHealth);
+        server.createContext("/api/fatura",     ex -> processarRequisicao(ex, leitor::lerFatura));
+        server.createContext("/api/fatura/ocr", ex -> processarRequisicao(ex, leitorOcr::lerFatura));
+        server.createContext("/api/health",     this::handleHealth);
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
         System.out.printf("API iniciada → http://localhost:%d%n", porta);
-        System.out.println("  POST /api/fatura   (Content-Type: application/pdf, corpo = bytes do PDF)");
+        System.out.println("  POST /api/fatura       (extração de texto nativa — PDFBox)");
+        System.out.println("  POST /api/fatura/ocr   (extração via OCR — Tesseract 5)");
         System.out.println("  GET  /api/health");
     }
 
-    private void handleFatura(HttpExchange ex) throws IOException {
+    private void processarRequisicao(HttpExchange ex, FaturaProcessor proc) throws IOException {
         addCors(ex);
 
         if (ex.getRequestMethod().equalsIgnoreCase("OPTIONS")) {
             ex.sendResponseHeaders(204, -1);
             return;
         }
-
         if (!ex.getRequestMethod().equalsIgnoreCase("POST")) {
             responder(ex, 405, "{\"erro\":\"Método não permitido. Use POST.\"}");
             return;
@@ -56,7 +63,7 @@ public class ApiServer {
                 return;
             }
 
-            DadosFatura dados = leitor.lerFatura(tmp.toString());
+            DadosFatura dados = proc.processar(tmp.toString());
             responder(ex, 200, FaturaJson.toJson(dados));
 
         } catch (IllegalArgumentException e) {
