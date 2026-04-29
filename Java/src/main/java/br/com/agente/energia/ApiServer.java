@@ -52,16 +52,29 @@ public class ApiServer {
             return;
         }
 
-        Path tmp = Files.createTempFile("fatura_", ".pdf");
+        Path tmp = Files.createTempFile("fatura_", ".bin");
         try {
+            byte[] corpo;
             try (InputStream in = ex.getRequestBody()) {
-                Files.write(tmp, in.readAllBytes());
+                corpo = in.readAllBytes();
             }
 
-            if (Files.size(tmp) == 0) {
-                responder(ex, 400, "{\"erro\":\"Corpo vazio. Envie o PDF em bytes no corpo da requisição.\"}");
+            if (corpo.length == 0) {
+                responder(ex, 400, "{\"erro\":\"Corpo vazio. Envie o arquivo no corpo da requisição ou via multipart.\"}");
                 return;
             }
+
+            // Detecta multipart/form-data e extrai o conteúdo do arquivo
+            String contentType = ex.getRequestHeaders().getFirst("Content-Type");
+            if (contentType != null && contentType.contains("multipart/form-data")) {
+                corpo = extrairMultipart(corpo, contentType);
+                if (corpo == null) {
+                    responder(ex, 400, "{\"erro\":\"Não foi possível extrair o arquivo do multipart. Use campo 'arquivo'.\"}");
+                    return;
+                }
+            }
+
+            Files.write(tmp, corpo);
 
             DadosFatura dados = proc.processar(tmp.toString());
             responder(ex, 200, FaturaJson.toJson(dados));
@@ -97,5 +110,55 @@ public class ApiServer {
 
     private String json(String chave, String valor) {
         return "{\"" + chave + "\":\"" + (valor != null ? valor.replace("\"", "'") : "erro interno") + "\"}";
+    }
+
+    // Extrai o conteúdo binário do primeiro campo de arquivo em um multipart/form-data.
+    private byte[] extrairMultipart(byte[] corpo, String contentType) {
+        try {
+            String boundary = null;
+            for (String part : contentType.split(";")) {
+                part = part.strip();
+                if (part.startsWith("boundary=")) {
+                    boundary = part.substring("boundary=".length()).strip().replace("\"", "");
+                    break;
+                }
+            }
+            if (boundary == null) return null;
+
+            byte[] delim = ("--" + boundary).getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+            byte[] crlf  = "\r\n".getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+            byte[] hdrEnd = "\r\n\r\n".getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+
+            int pos = indexOf(corpo, delim, 0);
+            while (pos >= 0) {
+                pos += delim.length;
+                if (pos + 2 <= corpo.length && corpo[pos] == '-' && corpo[pos + 1] == '-') break;
+                if (pos + crlf.length <= corpo.length) pos += crlf.length; // pula CRLF após boundary
+                int bodyStart = indexOf(corpo, hdrEnd, pos);
+                if (bodyStart < 0) break;
+                bodyStart += hdrEnd.length;
+                int nextBound = indexOf(corpo, delim, bodyStart);
+                if (nextBound < 0) break;
+                // Remove CRLF antes do próximo boundary
+                int bodyEnd = nextBound - crlf.length;
+                if (bodyEnd > bodyStart) {
+                    byte[] resultado = new byte[bodyEnd - bodyStart];
+                    System.arraycopy(corpo, bodyStart, resultado, 0, resultado.length);
+                    return resultado;
+                }
+                pos = nextBound;
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private int indexOf(byte[] data, byte[] pattern, int from) {
+        outer: for (int i = from; i <= data.length - pattern.length; i++) {
+            for (int j = 0; j < pattern.length; j++) {
+                if (data[i + j] != pattern[j]) continue outer;
+            }
+            return i;
+        }
+        return -1;
     }
 }
