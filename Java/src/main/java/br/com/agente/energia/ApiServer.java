@@ -30,13 +30,13 @@ public class ApiServer {
     public void iniciar() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(porta), 0);
         server.createContext("/api/fatura",     ex -> processarRequisicao(ex, leitor::lerFatura));
-        server.createContext("/api/fatura/ocr", ex -> processarRequisicao(ex, leitorOcr::lerFatura));
+        server.createContext("/api/fatura/ocr", ex -> processarRequisicao(ex, leitorOcr::lerArquivo));
         server.createContext("/api/health",     this::handleHealth);
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
         System.out.printf("API iniciada → http://localhost:%d%n", porta);
         System.out.println("  POST /api/fatura       (extração de texto nativa — PDFBox)");
-        System.out.println("  POST /api/fatura/ocr   (extração via OCR — Tesseract 5)");
+        System.out.println("  POST /api/fatura/ocr   (extração via OCR — Tesseract 5; aceita PDF ou imagem JPEG/PNG/TIFF)");
         System.out.println("  GET  /api/health");
     }
 

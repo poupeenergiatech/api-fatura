@@ -34,6 +34,19 @@ public class LeitorCodigoBarrasImagem {
             BarcodeFormat.QR_CODE
     );
 
+    public String lerCodigoBarras(BufferedImage imagem) {
+        Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
+        hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+        hints.put(DecodeHintType.POSSIBLE_FORMATS, FORMATOS);
+        LuminanceSource source = new BufferedImageLuminanceSource(imagem);
+        BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
+        try {
+            return new MultiFormatReader().decode(bitmap, hints).getText();
+        } catch (NotFoundException e) {
+            return null;
+        }
+    }
+
     public String lerCodigoBarras(String caminhoPdf) throws IOException {
         File arquivo = new File(caminhoPdf);
         Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);

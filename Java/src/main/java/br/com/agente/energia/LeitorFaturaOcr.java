@@ -6,8 +6,10 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 
 /**
@@ -22,19 +24,51 @@ public class LeitorFaturaOcr {
 
     private final LeitorFatura leitor = new LeitorFatura();
 
+    /** Auto-detecta PDF ou imagem pelos magic bytes e processa adequadamente. */
+    public DadosFatura lerArquivo(String caminho) throws IOException {
+        return ehPdf(caminho) ? lerFatura(caminho) : lerImagem(caminho);
+    }
+
     public DadosFatura lerFatura(String caminhoPdf) throws IOException {
         String texto = extrairTextoOcr(caminhoPdf);
         DadosFatura dados = leitor.lerTexto(texto);
 
-        // Tenta código de barras via imagem se o OCR não encontrou na linha digitável
         if (dados.getResumoPagamento().getCodigoBarras() == null) {
-            String codigoImagem = new LeitorCodigoBarrasImagem().lerCodigoBarras(caminhoPdf);
-            if (codigoImagem != null) {
-                dados.getResumoPagamento().setCodigoBarras(codigoImagem);
-            }
+            String codigo = new LeitorCodigoBarrasImagem().lerCodigoBarras(caminhoPdf);
+            if (codigo != null) dados.getResumoPagamento().setCodigoBarras(codigo);
         }
 
         return dados;
+    }
+
+    public DadosFatura lerImagem(String caminhoImagem) throws IOException {
+        BufferedImage imagem = ImageIO.read(new File(caminhoImagem));
+        if (imagem == null)
+            throw new IllegalArgumentException("Formato de imagem não suportado. Use JPEG, PNG ou TIFF.");
+
+        Tesseract tesseract = criarTesseract();
+        String texto;
+        try {
+            texto = tesseract.doOCR(imagem);
+        } catch (TesseractException e) {
+            throw new IOException("Falha no OCR da imagem: " + e.getMessage(), e);
+        }
+
+        DadosFatura dados = leitor.lerTexto(texto);
+
+        if (dados.getResumoPagamento().getCodigoBarras() == null) {
+            String codigo = new LeitorCodigoBarrasImagem().lerCodigoBarras(imagem);
+            if (codigo != null) dados.getResumoPagamento().setCodigoBarras(codigo);
+        }
+
+        return dados;
+    }
+
+    private boolean ehPdf(String caminho) throws IOException {
+        try (FileInputStream fis = new FileInputStream(caminho)) {
+            byte[] h = fis.readNBytes(4);
+            return h.length == 4 && h[0] == '%' && h[1] == 'P' && h[2] == 'D' && h[3] == 'F';
+        }
     }
 
     private String extrairTextoOcr(String caminhoPdf) throws IOException {
