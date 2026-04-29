@@ -89,18 +89,18 @@ curl http://localhost:8080/api/health
 ```json
 {
   "distribuidora": {
-    "nome": "COMPANHIA ENERGÉTICA DO RIO GRANDE DO NORTE",
-    "cnpj": "08.324.196/0001-81"
+    "nome": "DISTRIBUIDORA EXEMPLO DE ENERGIA S.A.",
+    "cnpj": "00.000.000/0001-00"
   },
   "cliente": {
-    "nome": "GIECIO VANDRE CORTES",
-    "numero_instalacao": "554340"
+    "nome": "JOÃO DA SILVA EXEMPLO",
+    "numero_instalacao": "123456"
   },
   "resumo_pagamento": {
-    "referencia": "10/2025",
-    "data_vencimento": "13/10/2025",
-    "valor_total": 2452.42,
-    "codigo_barras": "34191.09271 76119.132934 85833.390009 3 12330000245242"
+    "referencia": "01/2025",
+    "data_vencimento": "15/02/2025",
+    "valor_total": 350.00,
+    "codigo_barras": "00000.00000 00000.000000 00000.000000 0 00000000000000"
   }
 }
 ```
