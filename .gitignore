@@ -1,0 +1,25 @@
+# Build
+Java/target/
+
+# Ferramentas locais (JDK e Maven empacotados)
+Java/.tools/
+
+# PDFs de faturas (dados pessoais)
+*.pdf
+*.PDF
+*_resultado.json
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Zone identifiers do Windows
+*:Zone.Identifier
