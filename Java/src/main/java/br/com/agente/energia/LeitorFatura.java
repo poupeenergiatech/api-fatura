@@ -31,10 +31,9 @@ public class LeitorFatura {
 
     // Medidor: NUM GRANDEZA POSTO LEIT_ANT LEIT_AT CONST CONSUMO
     // Aceita variações de posto horário: Único, Ponta, Fora Ponta, F.Ponta, Fora de Ponta
-    // "Unico/Unica" sem acento cobre OCR de imagem que pode perder diacríticos
     private static final Pattern P_MEDIDOR = Pattern.compile(
-            "^(\\d{6,})\\s+((?:Energia|Demanda|Pot[êe]ncia)\\s+(?:Ativa|Reativa|El[eé]trica))" +
-            "\\s+(Ún?ico|Ún?ica|Un?ico|Un?ica|Ponta|Fora\\s*(?:de\\s*)?Ponta|F\\.?\\s*Ponta)\\s+" +
+            "^(\\d{6,})\\s+((?:Energia|Demanda|Potência)\\s+(?:Ativa|Reativa|Elétrica))" +
+            "\\s+(Único|Única|Ponta|Fora\\s*(?:de\\s*)?Ponta|F\\.?\\s*Ponta)\\s+" +
             "([\\d\\.,]+)\\s+([\\d\\.,]+)\\s+([\\d\\.,]+)\\s+([\\d\\.,]+)",
             Pattern.CASE_INSENSITIVE);
 
@@ -82,14 +81,13 @@ public class LeitorFatura {
             if (lu.startsWith("CNPJ") &&
                 (lu.contains("INSCRIÇÃO ESTADUAL") || lu.contains("INSCRICAO ESTADUAL") ||
                  lu.contains("INSCRI") && lu.contains("ESTADUAL") ||
-                 lu.contains(" IE:") || lu.contains(" IE ") || lu.contains("\tIE") ||
-                 lu.contains("INSC. EST") || lu.contains("INSC.EST")) &&
+                 lu.contains(" IE:") || lu.contains(" IE ") || lu.contains("\tIE")) &&
                 d.getDistribuidora().getCnpj() == null) {
 
                 Matcher m = Pattern.compile("CNPJ[\\s:]+([\\d./\\-]+)", Pattern.CASE_INSENSITIVE).matcher(l);
                 if (m.find()) d.getDistribuidora().setCnpj(m.group(1));
 
-                m = Pattern.compile("(?:INSCRI[CÇ][AÃ]O ESTADUAL|INSC\\.?\\s*EST\\.?|\\bIE\\b)[\\s:|]+([\\d\\-\\.a-zA-Z]+)",
+                m = Pattern.compile("(?:INSCRI[CÇ][AÃ]O ESTADUAL|\\bIE\\b)[\\s:|]+([\\d\\-\\.]+)",
                         Pattern.CASE_INSENSITIVE).matcher(l);
                 if (m.find()) d.getDistribuidora().setInscricaoEstadual(m.group(1));
 
@@ -136,87 +134,41 @@ public class LeitorFatura {
             // ═══════════════════════════════════════════════════════
             // BLOCO 2 — IDENTIFICAÇÃO DO CLIENTE
             // ═══════════════════════════════════════════════════════
-            if ((lu.startsWith("NOME DO CLIENTE") ||
+            if ((lu.equals("NOME DO CLIENTE:") || lu.equals("NOME DO CLIENTE") ||
                  lu.equals("CONSUMIDOR:") || lu.equals("CONSUMIDOR") ||
                  lu.equals("CLIENTE:") || lu.equals("CLIENTE") ||
                  lu.equals("TITULAR:") || lu.equals("TITULAR")) &&
                 d.getCliente().getNome() == null) {
-                // Busca nas próximas linhas: OCR pode inserir "CÓDIGO DA INSTALAÇÃO" entre o label e o nome
-                for (int j = i + 1; j < Math.min(i + 4, ls.length); j++) {
-                    String cand = ls[j].strip();
-                    String candU = cand.toUpperCase();
-                    if (cand.isEmpty()) continue;
-                    if (candU.contains("CÓDIGO") || candU.contains("CODIGO") ||
-                        candU.contains("CPF") || candU.contains("CNPJ") ||
-                        candU.contains("ENDEREÇO") || candU.equals("=")) continue;
-                    // Nome em faturas começa em maiúsculas; extrai prefixo maiúsculo (ignora ruído OCR após)
-                    Matcher mNome = Pattern.compile("^([A-ZÁÉÍÓÚÂÊÔÃÕÜ][A-ZÁÉÍÓÚÂÊÔÃÕÜ\\s]{5,80})").matcher(cand);
-                    if (mNome.find()) {
-                        d.getCliente().setNome(mNome.group(1).strip());
-                        break;
-                    }
-                }
+                if (!prox.isEmpty() && !prox.toUpperCase().contains("CÓDIGO") && prox.length() < 80)
+                    d.getCliente().setNome(prox);
             }
 
-            // CPF ou CNPJ do cliente — aceita "CPF:" ou "CPF " (sem dois-pontos, OCR de imagem)
+            // CPF ou CNPJ do cliente
             if ((lu.startsWith("CNPJ:") || lu.startsWith("CPF:") ||
-                 lu.startsWith("CPF ") || lu.startsWith("CNPJ ") ||
                  lu.startsWith("CPF/CNPJ:") || lu.startsWith("CPF / CNPJ:")) &&
                 d.getCliente().getCnpj() == null) {
-                Matcher m = Pattern.compile("(?:CPF/CNPJ|CPF|CNPJ)[:\\s]+([\\d./\\-*\"'\\s]+?)(?:\\s{2,}|$)",
+                Matcher m = Pattern.compile("(?:CPF/CNPJ|CPF|CNPJ)[:\\s]+([\\d./\\-*]+)",
                         Pattern.CASE_INSENSITIVE).matcher(l);
-                if (m.find()) d.getCliente().setCnpj(m.group(1).strip());
+                if (m.find()) d.getCliente().setCnpj(m.group(1));
             }
 
             if ((lu.contains("CÓDIGO DA INSTALAÇÃO") || lu.contains("CODIGO DA INSTALACAO") ||
                  lu.contains("NÚMERO DA INSTALAÇÃO") || lu.contains("Nº INSTALAÇÃO") ||
                  lu.contains("CÓD. INSTALAÇÃO")) &&
                 d.getCliente().getNumeroInstalacao() == null) {
-                if (prox.matches("\\d+")) {
-                    d.getCliente().setNumeroInstalacao(prox);
-                } else {
-                    // OCR de imagem pode misturar o código com outro texto na mesma linha
-                    for (int j = i + 1; j < Math.min(i + 4, ls.length); j++) {
-                        if (ls[j].strip().matches("\\d{6,}")) {
-                            d.getCliente().setNumeroInstalacao(ls[j].strip());
-                            break;
-                        }
-                    }
-                }
+                if (prox.matches("\\d+")) d.getCliente().setNumeroInstalacao(prox);
             }
 
             if ((lu.contains("CÓDIGO DO CLIENTE") || lu.contains("CODIGO DO CLIENTE") ||
                  lu.contains("CÓD. CLIENTE") || lu.contains("CÓDIGO CLIENTE")) &&
                 d.getCliente().getCodigoCliente() == null) {
-                if (prox.matches("\\d{6,}")) {
-                    d.getCliente().setCodigoCliente(prox);
-                } else {
-                    for (int j = i + 1; j < Math.min(i + 4, ls.length); j++) {
-                        if (ls[j].strip().matches("\\d{6,}")) {
-                            d.getCliente().setCodigoCliente(ls[j].strip());
-                            break;
-                        }
-                    }
-                }
+                if (prox.matches("\\d{6,}")) d.getCliente().setCodigoCliente(prox);
             }
 
-            if ((lu.startsWith("ENDEREÇO:") || lu.startsWith("ENDERECO:") ||
-                 lu.startsWith("ENDEREÇO DA UNIDADE") || lu.startsWith("LOGRADOURO:")) &&
+            if ((lu.equals("ENDEREÇO:") || lu.equals("ENDERECO:") ||
+                 lu.equals("ENDEREÇO DA UNIDADE:") || lu.equals("LOGRADOURO:")) &&
                 d.getCliente().getLogradouro() == null) {
-                // Busca nas próximas linhas pulando labels de campo conhecidos (OCR de imagem mistura colunas)
-                String logradouro = null;
-                for (int j = i + 1; j < Math.min(i + 5, ls.length); j++) {
-                    String cand = ls[j].strip();
-                    if (cand.isEmpty()) continue;
-                    String candU = cand.toUpperCase();
-                    if (candU.startsWith("CODIGO") || candU.startsWith("CÓDIGO") ||
-                        candU.startsWith("CPF") || candU.startsWith("CNPJ") ||
-                        candU.startsWith("NOME") || candU.startsWith("ENDEREÇO") ||
-                        candU.startsWith("ENDERECO")) continue;
-                    // Aceita rua/avenida que começa com algo parecido com logradouro
-                    if (cand.length() > 4) { logradouro = cand; break; }
-                }
-                if (logradouro != null) d.getCliente().setLogradouro(logradouro);
+                d.getCliente().setLogradouro(prox);
                 for (int j = i + 2; j < Math.min(i + 6, ls.length); j++) {
                     Matcher m = Pattern.compile("(\\d{5}[\\-\\s]\\d{3})\\s+(.+?)\\s+(\\w{2})$").matcher(ls[j].strip());
                     if (m.find()) {
@@ -236,27 +188,14 @@ public class LeitorFatura {
                 Matcher m = Pattern.compile(
                         "(?i)CLASSIFICA[ÇC][ÃA]O[:\\s]+([^\\t]+?)(?:\\s{2,}TIPO DE FORNECIMENTO[:\\s]+(.+))?$").matcher(l);
                 if (m.find()) {
-                    String classif = m.group(1).strip();
-                    // Cabeçalhos na mesma linha sem valores: "CLASSIFICAÇÃO:   TIPO DE FORNECIMENTO:"
-                    // → valores aparecem na próxima linha separados por espaços
-                    if (lu.contains("TIPO DE FORNECIMENTO") && classif.isEmpty()) {
-                        String[] partes = prox.split("\\s{2,}");
-                        if (partes.length >= 2) {
-                            d.getTarifario().setClassificacao(partes[0].strip());
-                            d.getTarifario().setTipoFornecimento(partes[partes.length - 1].strip());
-                        } else if (!prox.isEmpty()) {
-                            d.getTarifario().setClassificacao(prox.strip());
-                        }
+                    d.getTarifario().setClassificacao(m.group(1).strip());
+                    if (m.group(2) != null) {
+                        d.getTarifario().setTipoFornecimento(m.group(2).strip());
                     } else {
-                        if (!classif.isEmpty()) d.getTarifario().setClassificacao(classif);
-                        if (m.group(2) != null && !m.group(2).strip().isEmpty()) {
-                            d.getTarifario().setTipoFornecimento(m.group(2).strip());
-                        } else {
-                            Matcher m2 = Pattern.compile("TIPO DE FORNECIMENTO[:\\s]+(.+)$", Pattern.CASE_INSENSITIVE).matcher(prox);
-                            if (m2.find()) d.getTarifario().setTipoFornecimento(m2.group(1).strip());
-                            Matcher ms = Pattern.compile("^([A-ZÁÉÍÓÚÂÊÔÃÕÜ\\s]+?)\\s+--?\\s+", Pattern.CASE_INSENSITIVE).matcher(prox);
-                            if (ms.find()) d.getTarifario().setSubclasse(ms.group(1).strip());
-                        }
+                        Matcher m2 = Pattern.compile("TIPO DE FORNECIMENTO[:\\s]+(.+)$", Pattern.CASE_INSENSITIVE).matcher(prox);
+                        if (m2.find()) d.getTarifario().setTipoFornecimento(m2.group(1).strip());
+                        Matcher ms = Pattern.compile("^([A-ZÁÉÍÓÚÂÊÔÃÕÜ\\s]+?)\\s+--?\\s+", Pattern.CASE_INSENSITIVE).matcher(prox);
+                        if (ms.find()) d.getTarifario().setSubclasse(ms.group(1).strip());
                     }
                 }
             }
@@ -283,10 +222,9 @@ public class LeitorFatura {
             // ═══════════════════════════════════════════════════════
             // BLOCO 4 — NF-e
             // ═══════════════════════════════════════════════════════
-            if (lu.contains("NOTA FISCAL") && (lu.contains("SÉRIE") || lu.contains("SERIE"))) {
-                // "SÉRIE ÚNICA 000" — aceita palavra opcional entre SÉRIE e o número (ex: "ÚNICA")
+            if (lu.contains("NOTA FISCAL") && lu.contains("SÉRIE")) {
                 Matcher m = Pattern.compile(
-                        "NOTA FISCAL N[°º]\\s+(\\d+).*?S[EÉ]RIE\\s+(?:[A-ZÁÉÍÓÚ]+\\s+)?(\\d+).*?DATA DE EMISS[ÃA]O[:\\s]+(\\d{2}/\\d{2}/\\d{4})",
+                        "NOTA FISCAL N[°º]\\s+(\\d+).*SÉRIE\\s+(\\d+).*DATA DE EMISS[ÃA]O[:\\s]+(\\d{2}/\\d{2}/\\d{4})",
                         Pattern.CASE_INSENSITIVE).matcher(l);
                 if (m.find() && d.getNfe().getNumero() == null) {
                     d.getNfe().setNumero(m.group(1));
@@ -306,29 +244,16 @@ public class LeitorFatura {
             // ═══════════════════════════════════════════════════════
             // BLOCO 5 — LEITURAS
             // ═══════════════════════════════════════════════════════
-            if (lu.contains("LEITURA ANTERIOR") && d.getLeituras().getDataAnterior() == null) {
-                // Formato 1: cabeçalho e datas na mesma linha (PDF nativo)
+            if (lu.contains("LEITURA ANTERIOR") && lu.contains("LEITURA ATUAL") && d.getLeituras().getDataAnterior() == null) {
                 Matcher m = Pattern.compile(
                         "LEITURA ANTERIOR\\s+(\\d{2}/\\d{2}/\\d{4})\\s+LEITURA ATUAL\\s+(\\d{2}/\\d{2}/\\d{4})" +
-                        "(?:\\s+N[°º\\.]*\\s*DE DIAS\\s+(\\d+))?(?:\\s+PR[ÓO]XIMA LEITURA\\s+(\\d{2}/\\d{2}/\\d{4}))?",
+                        "(?:\\s+N[°º]\\s+DE DIAS\\s+(\\d+))?(?:\\s+PR[ÓO]XIMA LEITURA\\s+(\\d{2}/\\d{2}/\\d{4}))?",
                         Pattern.CASE_INSENSITIVE).matcher(l);
                 if (m.find()) {
                     d.getLeituras().setDataAnterior(m.group(1));
                     d.getLeituras().setDataAtual(m.group(2));
                     if (m.group(3) != null) d.getLeituras().setNumeroDias(Integer.parseInt(m.group(3)));
                     if (m.group(4) != null) d.getLeituras().setDataProxima(m.group(4));
-                } else {
-                    // Formato 2: cabeçalho numa linha, datas na seguinte (OCR de imagem)
-                    // "DATAS DE LEITURAS  LEITURA ANTERIOR  LEITURA ATUAL  Nº DE DIAS  PRÓXIMA LEITURA"
-                    // "                   10/09/2024        09/10/2024     29           08/11/2024"
-                    Matcher mD = Pattern.compile(
-                            "(\\d{2}/\\d{2}/\\d{4})\\s+(\\d{2}/\\d{2}/\\d{4})(?:\\s+(\\d+)(?:\\s+(\\d{2}/\\d{2}/\\d{4}))?)?").matcher(prox);
-                    if (mD.find()) {
-                        d.getLeituras().setDataAnterior(mD.group(1));
-                        d.getLeituras().setDataAtual(mD.group(2));
-                        if (mD.group(3) != null) d.getLeituras().setNumeroDias(Integer.parseInt(mD.group(3)));
-                        if (mD.group(4) != null) d.getLeituras().setDataProxima(mD.group(4));
-                    }
                 }
             }
 
@@ -336,30 +261,8 @@ public class LeitorFatura {
             // BLOCO 6 — RESUMO DE PAGAMENTO
             // Aceita variações de rótulo entre distribuidoras
             // ═══════════════════════════════════════════════════════
-            // Linha de cabeçalho com múltiplas colunas: "REF: MÊS / ANO  TOTAL A PAGAR  VENCIMENTO"
-            // → valores na próxima linha: "10/2024  173,31  11/11/2024"
-            if (lu.contains("TOTAL A PAGAR") && lu.contains("VENCIMENTO") &&
-                (lu.contains("REF") || lu.contains("MÊS") || lu.contains("MES"))) {
-                Matcher mRef = P_MES_ANO.matcher(prox);
-                if (mRef.find() && d.getResumoPagamento().getReferencia() == null)
-                    d.getResumoPagamento().setReferencia(mRef.group());
-                Matcher mData = P_DATA.matcher(prox);
-                String dataEncontrada = null;
-                while (mData.find()) dataEncontrada = mData.group();
-                if (dataEncontrada != null && d.getResumoPagamento().getDataVencimento() == null)
-                    d.getResumoPagamento().setDataVencimento(dataEncontrada);
-                // Valor total só se encontrar explicitamente número com vírgula (evita capturar o ano)
-                if (d.getResumoPagamento().getValorTotal() == null) {
-                    Matcher mMon = Pattern.compile("(\\d{1,5}[,.]\\d{2})(?!\\d)").matcher(prox);
-                    while (mMon.find()) {
-                        Double v = parseValor(mMon.group(1));
-                        if (v != null && v > 10) { d.getResumoPagamento().setValorTotal(v); break; }
-                    }
-                }
-            }
-
             if (d.getResumoPagamento().getReferencia() == null &&
-                (lu.matches("REF[:\\s]*M[EÊ]S[\\s/]*ANO") ||
+                (lu.equals("REF:MÊS/ANO") || lu.equals("REF:MES/ANO") ||
                  lu.equals("MÊS/ANO") || lu.equals("MES/ANO") ||
                  lu.contains("REFERÊNCIA") || lu.contains("REFERENCIA") ||
                  lu.contains("PERÍODO") || lu.contains("COMPETÊNCIA") ||
@@ -383,7 +286,7 @@ public class LeitorFatura {
             }
             if (d.getResumoPagamento().getValorTotal() == null &&
                 (lu.contains("TOTAL A PAGAR") || lu.contains("VALOR A PAGAR") ||
-                 lu.contains("TOTAL DA FATURA") || lu.contains("VALOR TOTAL") || lu.equals("TOTAL"))) {
+                 lu.contains("VALOR TOTAL") || lu.equals("TOTAL"))) {
                 Double v = lastNumber(l);
                 if (v == null || v == 0.0) v = parseValor(prox);
                 if (v != null && v > 0) d.getResumoPagamento().setValorTotal(v);
@@ -399,9 +302,7 @@ public class LeitorFatura {
             // BLOCO 7 — ITENS DA FATURA
             // ═══════════════════════════════════════════════════════
             {
-                // OCR de imagem pode gerar "/" entre colunas (ex: "151,00/0,52843384")
-                String lNorm = l.replaceAll("([\\d,])\\s*/\\s*([\\d,])", "$1 $2");
-                Matcher m = P_ITEM_COMPLETO.matcher(lNorm);
+                Matcher m = P_ITEM_COMPLETO.matcher(l);
                 if (m.matches()) {
                     ItemFatura it = new ItemFatura(m.group(1).strip());
                     it.setUnidade(m.group(2));
@@ -430,12 +331,11 @@ public class LeitorFatura {
             //    ex: "Acréscimo Bandeira Amarela    5,90"
             if (isBandeiraDesc(lu) &&
                 !Pattern.compile("\\b(" + UNIDADES + ")\\b", Pattern.CASE_INSENSITIVE).matcher(l).find()) {
-                String lNormBand = l.replaceAll("([\\d,])\\s*/\\s*([\\d,])", "$1 $2");
-                ItemFatura it = new ItemFatura(lNormBand.split("  +")[0].strip());
+                ItemFatura it = new ItemFatura(l.split("  +")[0].strip());
                 // Tenta 5 colunas: valor  pis  base  aliq  icms
                 Matcher m5 = Pattern.compile(
                         "^.+?\\s{2,}([\\d\\.]+,[\\d]+)\\s+([\\d\\.]+,[\\d]+)\\s+([\\d\\.]+,[\\d]+)\\s+([\\d,]+)\\s+([\\d\\.]+,[\\d]+)\\s*$"
-                ).matcher(lNormBand);
+                ).matcher(l);
                 if (m5.matches()) {
                     it.setValor(parseValor(m5.group(1)));
                     it.setPisCofins(parseValor(m5.group(2)));
@@ -443,7 +343,7 @@ public class LeitorFatura {
                     it.setAliquotaIcms(parseValor(m5.group(4)));
                     it.setValorIcms(parseValor(m5.group(5)));
                 } else {
-                    it.setValor(lastNumber(lNormBand));
+                    it.setValor(lastNumber(l));
                 }
                 if (it.getValor() != null) {
                     d.addItem(it);
@@ -501,22 +401,9 @@ public class LeitorFatura {
             // ═══════════════════════════════════════════════════════
             // BLOCO 8 — TRIBUTOS
             // ═══════════════════════════════════════════════════════
-            // Normaliza pipes gerados pelo OCR em separadores de coluna: "127.27 | 0,92 1,17" → "127.27 0,92 1,17"
-            String lTrib = l.replaceAll("\\s*\\|\\s*", " ");
-            String luTrib = lTrib.toUpperCase();
-            // Extrai tributo a partir da posição do label para ignorar texto anterior (OCR mistura colunas)
-            if (d.getTributos().getPis() == null) {
-                int idx = luTrib.indexOf("PIS ");
-                if (idx >= 0) { Tributo t = parseTributo(lTrib.substring(idx)); if (t != null) d.getTributos().setPis(t); }
-            }
-            if (d.getTributos().getCofins() == null) {
-                int idx = luTrib.indexOf("COFINS ");
-                if (idx >= 0) { Tributo t = parseTributo(lTrib.substring(idx)); if (t != null) d.getTributos().setCofins(t); }
-            }
-            if (d.getTributos().getIcms() == null) {
-                int idx = luTrib.indexOf("ICMS ");
-                if (idx >= 0) { Tributo t = parseTributo(lTrib.substring(idx)); if (t != null) d.getTributos().setIcms(t); }
-            }
+            if (lu.matches("\\s*PIS\\s+[\\d\\.,]+.*"))    d.getTributos().setPis(parseTributo(l));
+            if (lu.matches("\\s*COFINS\\s+[\\d\\.,]+.*")) d.getTributos().setCofins(parseTributo(l));
+            if (lu.matches("\\s*ICMS\\s+[\\d\\.,]+.*"))   d.getTributos().setIcms(parseTributo(l));
 
             // ═══════════════════════════════════════════════════════
             // BLOCO 9 — MEDIDOR(ES)
@@ -531,8 +418,7 @@ public class LeitorFatura {
                     String posto = m.group(3).toUpperCase().replaceAll("\\s+", " ").strip();
                     if (posto.contains("FORA") || posto.startsWith("F.") || posto.equals("FP"))
                         posto = "Fora Ponta";
-                    else if (posto.equals("ÚNICO") || posto.equals("ÚNICA") ||
-                             posto.equals("UNICO") || posto.equals("UNICA"))
+                    else if (posto.equals("ÚNICO") || posto.equals("ÚNICA"))
                         posto = "Único";
                     else if (posto.equals("PONTA") || posto.equals("P"))
                         posto = "Ponta";
@@ -548,19 +434,16 @@ public class LeitorFatura {
 
             // ═══════════════════════════════════════════════════════
             // BLOCO 10 — HISTÓRICO DE CONSUMO (Grupo B)
-            // Aceita "ABR26 313 29" (PDF) e "ABR 26 313 29" (OCR com espaço)
-            // Limpeza de pipes e caracteres estranhos antes de processar (OCR de imagem gera "|ouT24 151 2g")
+            // Formato: "ABR26 313 29" ou "NOV25" (sem dados)
             // ═══════════════════════════════════════════════════════
             {
-                String lHist = l.replaceAll("[^A-Za-záéíóúâêôãõüÁÉÍÓÚÂÊÔÃÕÜ0-9\\s]", " ").strip();
                 Matcher m = Pattern.compile(
-                        "(?:^|\\s)((?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\\s*\\d{2})(?:\\s+(\\d+)\\s+(\\d+))?(?:\\s|$)",
-                        Pattern.CASE_INSENSITIVE).matcher(lHist);
-                if (m.find()) {
-                    String mes   = m.group(1).toUpperCase().replaceAll("\\s+", "");
+                        "^((?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\\d{2})(?:\\s+(\\d+)\\s+(\\d+))?$",
+                        Pattern.CASE_INSENSITIVE).matcher(l);
+                if (m.matches()) {
                     Integer kwh  = m.group(2) != null ? Integer.parseInt(m.group(2)) : null;
                     Integer dias = m.group(3) != null ? Integer.parseInt(m.group(3)) : null;
-                    d.addHistorico(new HistoricoMes(mes, kwh, dias));
+                    d.addHistorico(new HistoricoMes(m.group(1).toUpperCase(), kwh, dias));
                 }
             }
 
@@ -649,10 +532,7 @@ public class LeitorFatura {
     }
 
     private Tributo parseTributo(String linha) {
-        // Aceita formato brasileiro "127,27" e americano "127.27" (OCR de imagem)
-        // Padrão: número com separador decimal (vírgula ou ponto) seguido de 2-4 dígitos
-        String numPat = "\\d+(?:[\\d\\.]*),\\d{2,4}|\\d+\\.\\d{2}";
-        Matcher m = Pattern.compile("(" + numPat + ")\\s+(" + numPat + ")\\s+(" + numPat + ")").matcher(linha);
+        Matcher m = Pattern.compile("([\\d\\.]+,[\\d]{2,4})\\s+([\\d\\.]+,[\\d]{2})\\s+([\\d\\.]+,[\\d]{2})").matcher(linha);
         if (m.find()) return new Tributo(parseValor(m.group(1)), parseValor(m.group(2)), parseValor(m.group(3)));
         return null;
     }
@@ -673,17 +553,7 @@ public class LeitorFatura {
 
     private Double parseValor(String texto) {
         if (texto == null) return null;
-        String t = texto.strip();
-        try {
-            if (t.contains(",")) {
-                // Formato brasileiro: "1.234,56" ou "79,79"
-                return Double.parseDouble(t.replace(".", "").replace(",", "."));
-            } else if (t.matches("\\d+\\.\\d{1,2}")) {
-                // Decimal americano sem vírgula: OCR pode gerar "127.27" em vez de "127,27"
-                return Double.parseDouble(t);
-            } else {
-                return Double.parseDouble(t.replace(".", ""));
-            }
-        } catch (NumberFormatException e) { return null; }
+        try { return Double.parseDouble(texto.strip().replace(".", "").replace(",", ".")); }
+        catch (NumberFormatException e) { return null; }
     }
 }
