@@ -1,0 +1,12 @@
+.git/
+.claude/
+Java/.tools/
+Java/target/
+docs/
+*.pdf
+*.PDF
+*_resultado.json
+*.iml
+.idea/
+.vscode/
+*:Zone.Identifier
