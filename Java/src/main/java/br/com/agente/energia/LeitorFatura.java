@@ -48,10 +48,14 @@ public class LeitorFatura {
     }
 
     public DadosFatura lerFatura(String caminhoPdf) throws IOException {
+        return lerFatura(caminhoPdf, "59832");
+    }
+
+    public DadosFatura lerFatura(String caminhoPdf, String senha) throws IOException {
         File arquivo = new File(caminhoPdf);
         if (!arquivo.exists()) throw new IllegalArgumentException("Arquivo não encontrado: " + caminhoPdf);
         DadosFatura dados = new DadosFatura();
-        try (PDDocument doc = Loader.loadPDF(arquivo)) {
+        try (PDDocument doc = carregarPdf(arquivo, senha)) {
             processar(new PDFTextStripper().getText(doc), dados);
         }
         if (dados.getResumoPagamento().getCodigoBarras() == null) {
@@ -61,6 +65,14 @@ public class LeitorFatura {
             }
         }
         return dados;
+    }
+
+    private PDDocument carregarPdf(File arquivo, String senha) throws IOException {
+        try {
+            return Loader.loadPDF(arquivo);
+        } catch (Exception e) {
+            return Loader.loadPDF(arquivo, senha);
+        }
     }
 
     private void processar(String texto, DadosFatura d) {

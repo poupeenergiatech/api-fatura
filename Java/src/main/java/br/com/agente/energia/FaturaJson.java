@@ -134,15 +134,14 @@ public class FaturaJson {
 
     private static void tributosJson(Sb sb, DadosTributos t) {
         sb.key("tributos").append("{\n");
-        tributoJson(sb, "pis",    t.getPis());    sb.append(",\n");
-        tributoJson(sb, "cofins", t.getCofins()); sb.append(",\n");
-        tributoJson(sb, "icms",   t.getIcms());   sb.append(",\n");
         List<String> extras = new ArrayList<>();
         addCampoTrib(extras, "cosip", t.getCosip());
         addCampoTrib(extras, "multa", t.getMulta());
         addCampoTrib(extras, "juros", t.getJuros());
         addCampoTrib(extras, "ipca",  t.getIpca());
-        // Pelo menos um extra existe; imprimir sem trailing comma
+        tributoJson(sb, "pis",    t.getPis());    sb.append(",\n");
+        tributoJson(sb, "cofins", t.getCofins()); sb.append(",\n");
+        tributoJson(sb, "icms",   t.getIcms());   if (!extras.isEmpty()) sb.append(",");  sb.append("\n");
         for (int i = 0; i < extras.size(); i++)
             sb.append("    ").append(extras.get(i)).append(i < extras.size() - 1 ? "," : "").append("\n");
         sb.append("  }");
