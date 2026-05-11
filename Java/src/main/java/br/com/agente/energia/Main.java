@@ -25,7 +25,10 @@ public class Main {
 
         if (args.length >= 2 && args[1].equals("--dump")) {
             try {
-                org.apache.pdfbox.pdmodel.PDDocument doc = org.apache.pdfbox.Loader.loadPDF(new java.io.File(caminhoPdf));
+                java.io.File f = new java.io.File(caminhoPdf);
+                org.apache.pdfbox.pdmodel.PDDocument doc;
+                try { doc = org.apache.pdfbox.Loader.loadPDF(f); }
+                catch (Exception ex) { doc = org.apache.pdfbox.Loader.loadPDF(f, "59832"); }
                 String text = new org.apache.pdfbox.text.PDFTextStripper().getText(doc);
                 doc.close();
                 String[] lines = text.split("\\r?\\n");

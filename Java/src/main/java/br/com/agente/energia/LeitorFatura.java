@@ -26,7 +26,7 @@ public class LeitorFatura {
     // Item completo: DESCRICAO UNIDADE QTDE PRECO VALOR PIS BASE ALQ ICMS TARIFA (10 colunas)
     private static final Pattern P_ITEM_COMPLETO = Pattern.compile(
             "^(.+?)\\s+(" + UNIDADES + ")\\s+([\\d\\.,]+-?)\\s+([\\d\\.,]+)\\s+([\\d\\.,]+-?)" +
-            "\\s+([\\d\\.,]+-?)\\s+([\\d\\.,]+)\\s+([\\d,]+)\\s+([\\d\\.,]+-?)\\s+([\\d\\.,]+)\\s*$",
+            "\\s+([\\d\\.,]+-?)\\s+([\\d\\.,]+-?)\\s+([\\d,]+)\\s+([\\d\\.,]+-?)\\s+([\\d\\.,]+)\\s*$",
             Pattern.CASE_INSENSITIVE);
 
     // Medidor: NUM GRANDEZA POSTO LEIT_ANT LEIT_AT CONST CONSUMO
@@ -322,7 +322,7 @@ public class LeitorFatura {
                     it.setPrecoUnitComTrib(parseValor(m.group(4)));
                     it.setValor(parseValorGd(m.group(5)));
                     it.setPisCofins(parseValorGd(m.group(6)));
-                    it.setBaseCalcIcms(parseValor(m.group(7)));
+                    it.setBaseCalcIcms(parseValorGd(m.group(7)));
                     it.setAliquotaIcms(parseValor(m.group(8)));
                     it.setValorIcms(parseValorGd(m.group(9)));
                     it.setTarifaUnit(parseValor(m.group(10)));
@@ -344,18 +344,18 @@ public class LeitorFatura {
             if (isBandeiraDesc(lu) &&
                 !Pattern.compile("\\b(" + UNIDADES + ")\\b", Pattern.CASE_INSENSITIVE).matcher(l).find()) {
                 ItemFatura it = new ItemFatura(l.split("  +")[0].strip());
-                // Tenta 5 colunas: valor  pis  base  aliq  icms
+                // Tenta 5 colunas: valor  pis  base  aliq  icms (valores podem ser negativos com trailing -)
                 Matcher m5 = Pattern.compile(
-                        "^.+?\\s{2,}([\\d\\.]+,[\\d]+)\\s+([\\d\\.]+,[\\d]+)\\s+([\\d\\.]+,[\\d]+)\\s+([\\d,]+)\\s+([\\d\\.]+,[\\d]+)\\s*$"
+                        "^.+?\\s{2,}([\\d\\.]+,[\\d]+-?)\\s+([\\d\\.]+,[\\d]+-?)\\s+([\\d\\.]+,[\\d]+-?)\\s+([\\d,]+)\\s+([\\d\\.]+,[\\d]+-?)\\s*$"
                 ).matcher(l);
                 if (m5.matches()) {
-                    it.setValor(parseValor(m5.group(1)));
-                    it.setPisCofins(parseValor(m5.group(2)));
-                    it.setBaseCalcIcms(parseValor(m5.group(3)));
+                    it.setValor(parseValorGd(m5.group(1)));
+                    it.setPisCofins(parseValorGd(m5.group(2)));
+                    it.setBaseCalcIcms(parseValorGd(m5.group(3)));
                     it.setAliquotaIcms(parseValor(m5.group(4)));
-                    it.setValorIcms(parseValor(m5.group(5)));
+                    it.setValorIcms(parseValorGd(m5.group(5)));
                 } else {
-                    it.setValor(lastNumber(l));
+                    it.setValor(parseValorGd(lastNumberRaw(l)));
                 }
                 if (it.getValor() != null) {
                     d.addItem(it);
