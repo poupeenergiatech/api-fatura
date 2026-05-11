@@ -409,6 +409,20 @@ public class LeitorFatura {
                 d.addItem(it);
                 d.getTributos().setIpca(lastNumber(l));
             }
+            // Compensação DIC/FIC/DMIC — crédito por violação de continuidade (valor negativo)
+            if (lu.startsWith("COMP.DIC") || lu.startsWith("COMP. DIC") ||
+                lu.startsWith("COMPENSAÇÃO DIC") || lu.startsWith("COMPENSACAO DIC") ||
+                lu.startsWith("COMP. FIC") || lu.startsWith("COMP.FIC") ||
+                lu.startsWith("COMP. DMIC") || lu.startsWith("COMP.DMIC")) {
+                String raw = lastNumberRaw(l);
+                if (raw != null) {
+                    ItemFatura it = new ItemFatura(l.replaceAll("\\s{2,}.*", "").strip());
+                    it.setValor(parseValorGd(raw));
+                    d.addItem(it);
+                    Double acum = d.getTributos().getCompDic();
+                    d.getTributos().setCompDic((acum != null ? acum : 0.0) + it.getValor());
+                }
+            }
 
             // ═══════════════════════════════════════════════════════
             // BLOCO 8 — TRIBUTOS
@@ -547,6 +561,14 @@ public class LeitorFatura {
         Matcher m = Pattern.compile("([\\d\\.]+,[\\d]{2,4})\\s+([\\d\\.]+,[\\d]{2})\\s+([\\d\\.]+,[\\d]{2})").matcher(linha);
         if (m.find()) return new Tributo(parseValor(m.group(1)), parseValor(m.group(2)), parseValor(m.group(3)));
         return null;
+    }
+
+    /** Retorna o texto bruto do último número da linha, incluindo sinal negativo trailing (ex: "41,93-"). */
+    private String lastNumberRaw(String linha) {
+        Matcher m = Pattern.compile("[\\d\\.]+,[\\d]{2,4}-?").matcher(linha);
+        String last = null;
+        while (m.find()) last = m.group();
+        return last;
     }
 
     private Double lastNumber(String linha) {

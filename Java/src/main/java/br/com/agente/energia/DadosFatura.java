@@ -130,10 +130,11 @@ public class DadosFatura {
         tributoRow(sb, "PIS",    tributos.getPis());
         tributoRow(sb, "COFINS", tributos.getCofins());
         tributoRow(sb, "ICMS",   tributos.getIcms());
-        field(sb, "COSIP",  tributos.getCosip());
-        field(sb, "Multa",  tributos.getMulta());
-        field(sb, "Juros",  tributos.getJuros());
-        field(sb, "IPCA",   tributos.getIpca());
+        field(sb, "COSIP",    tributos.getCosip());
+        field(sb, "Multa",    tributos.getMulta());
+        field(sb, "Juros",    tributos.getJuros());
+        field(sb, "IPCA",     tributos.getIpca());
+        field(sb, "Comp.DIC", tributos.getCompDic());
 
         sep(sb, "9. MEDIDOR(ES)");
         if (medidores.isEmpty()) {
